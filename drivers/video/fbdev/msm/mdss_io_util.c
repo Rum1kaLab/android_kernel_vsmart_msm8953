@@ -16,6 +16,10 @@
 #include <linux/delay.h>
 #include <linux/mdss_io_util.h>
 
+#ifdef CONFIG_CASUARINA_TOUCHSCREEN_FTS
+extern int tsp_gesture_status;
+#endif
+
 #define MAX_I2C_CMDS  16
 void mdss_reg_w(struct mdss_io_data *io, u32 offset, u32 value, u32 debug)
 {
@@ -267,6 +271,11 @@ int msm_mdss_enable_vreg(struct mdss_vreg *in_vreg, int num_vreg, int enable)
 	if (enable) {
 		for (i = 0; i < num_vreg; i++) {
 			rc = PTR_RET(in_vreg[i].vreg);
+#ifdef CONFIG_CASUARINA_TOUCHSCREEN_FTS
+			if ((tsp_gesture_status != 0) && ((strcmp(in_vreg[i].vreg_name,"lab") == 0) ||
+				(strcmp(in_vreg[i].vreg_name,"ibb") == 0)))
+				continue;
+#endif
 			if (rc) {
 				DEV_ERR("%pS->%s: %s regulator error. rc=%d\n",
 					__builtin_return_address(0), __func__,
@@ -296,8 +305,16 @@ int msm_mdss_enable_vreg(struct mdss_vreg *in_vreg, int num_vreg, int enable)
 				goto disable_vreg;
 			}
 		}
+#ifdef CONFIG_CASUARINA_TOUCHSCREEN_FTS
+		msleep(10);
+#endif
 	} else {
 		for (i = num_vreg-1; i >= 0; i--) {
+#ifdef CONFIG_CASUARINA_TOUCHSCREEN_FTS
+			if ((tsp_gesture_status != 0) && ((strcmp(in_vreg[i].vreg_name,"lab") == 0) ||
+				(strcmp(in_vreg[i].vreg_name,"ibb") == 0)))
+				continue;
+#endif
 			if (in_vreg[i].pre_off_sleep)
 				usleep_range((in_vreg[i].pre_off_sleep * 1000),
 					(in_vreg[i].pre_off_sleep * 1000) + 10);

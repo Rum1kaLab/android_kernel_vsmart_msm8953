@@ -95,6 +95,8 @@ int gesture_mode_enable = 0;
 /*****************************************************************************
 * Global variable or extern global variabls/functions
 *****************************************************************************/
+struct class *vsm_class_focaltech;
+int tsp_gesture_status = 0;
 
 /*****************************************************************************
 * Static function prototypes
@@ -459,4 +461,85 @@ int fts_gesture_exit(struct fts_ts_data *ts_data)
     sysfs_remove_group(&ts_data->dev->kobj, &fts_gesture_group);
     FTS_FUNC_EXIT();
     return 0;
+}
+
+static ssize_t doubletap_enable_store(struct device *dev,
+        struct device_attribute *devattr, const char *buf, size_t count)
+{
+	struct fts_ts_data *ts_data = dev_get_drvdata(dev);
+    int enable = 0;
+    int ret;
+
+    ret = kstrtoint(buf, 10, &enable);
+    if (ret != 0)
+        return ret;
+
+    if (enable) {
+        ts_data->gesture_mode = ENABLE;
+		tsp_gesture_status = 1;
+	} else {
+        ts_data->gesture_mode = DISABLE;
+		tsp_gesture_status = 0;
+	}
+
+    FTS_INFO("update wakeup events: %s:%d", __func__, enable);
+
+    return count;
+}
+
+static ssize_t doubletap_enable_show(struct device *dev,
+        struct device_attribute *attr, char *buf)
+{
+	struct fts_ts_data *ts_data = dev_get_drvdata(dev);
+
+    return sprintf(buf, "%d\n", ts_data->gesture_mode);
+}
+
+static DEVICE_ATTR(doubletap_enable, 0660, doubletap_enable_show,
+			doubletap_enable_store);
+
+static struct attribute *vsm_gesture_attrs[] = {
+    &dev_attr_doubletap_enable.attr,
+    NULL,
+};
+
+static const struct attribute_group tp_gesture_attr_group = {
+    .attrs = vsm_gesture_attrs,
+};
+
+int vsm_focaltech_gesture_sysfs_init(struct fts_ts_data *ts_data)
+{
+    int ret;
+    vsm_class_focaltech = class_create(THIS_MODULE, "vsm");
+    if (unlikely(IS_ERR(vsm_class_focaltech))) {
+       FTS_ERROR("%s: Failed to create class(sec) %ld", __func__, PTR_ERR(vsm_class_focaltech));
+        return PTR_ERR(vsm_class_focaltech);
+    }
+
+    ts_data->sysfs_dev = device_create(vsm_class_focaltech, NULL, 0, ts_data, "tp");
+    if (IS_ERR(ts_data->sysfs_dev)) {
+        FTS_ERROR("%s: failed to create device for the sysfs", __func__);
+        return -ENODEV;
+    }
+
+    dev_set_drvdata(ts_data->sysfs_dev, ts_data);
+
+    ret = sysfs_create_group(&ts_data->sysfs_dev->kobj, &tp_gesture_attr_group);
+    if (ret < 0) {
+        FTS_ERROR("%s: failed to create sysfs group", __func__);
+        goto err_sysfs_group;
+    }
+
+    return 0;
+
+err_sysfs_group:
+    device_destroy(vsm_class_focaltech, 0);
+    return -ENODEV;
+}
+
+void vsm_focaltech_gesture_sysfs_remove(struct fts_ts_data *ts_data)
+{
+    sysfs_remove_group(&ts_data->sysfs_dev->kobj, &tp_gesture_attr_group);
+    dev_set_drvdata(ts_data->sysfs_dev, NULL);
+    device_destroy(vsm_class_focaltech, 0);
 }
