@@ -1396,6 +1396,10 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
         FTS_ERROR("create sysfs node fail");
     }
 
+	ret = vsm_focaltech_gesture_sysfs_init(ts_data);
+	if (ret < 0)
+		FTS_ERROR("%s: Failed to init TP gesture sysfs %d", __func__, ret);
+
 #if FTS_POINT_REPORT_CHECK_EN
     ret = fts_point_report_check_init(ts_data);
     if (ret) {
@@ -1498,6 +1502,7 @@ static int fts_ts_remove_entry(struct fts_ts_data *ts_data)
     fts_release_apk_debug_channel(ts_data);
 
     fts_remove_sysfs(ts_data);
+	vsm_focaltech_gesture_sysfs_remove(ts_data);
 
     fts_ex_mode_exit(ts_data);
 
